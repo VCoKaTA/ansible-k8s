@@ -1,0 +1,62 @@
+---
+- hosts: cluster
+  gather_facts: yes
+  roles:
+    - init
+  tags:
+    - init
+- hosts: localhost
+  gather_facts: yes
+  roles:
+    - { role: pki, pki_mode: pki }
+  tags:
+    - pki
+
+- hosts: etcd
+  gather_facts: yes
+  roles:
+    - etcd
+  tags:
+    - etcd
+
+- hosts: HA 
+  gather_facts: yes
+  roles:
+    - { role: HA, tags: HA, when: "groups['kube-master'] | length  > 1" }
+
+- hosts: kube-master
+  gather_facts: yes
+  roles:
+    - kube-master
+  tags:
+    - kube-master
+
+- hosts: localhost
+  gather_facts: yes
+  roles:
+    - { role: pki, pki_mode: bootstrap } 
+  tags:
+    - bootstrap
+
+
+- hosts: cluster 
+  gather_facts: yes
+  roles:
+    - docker
+    - kube-node   
+  tags: 
+    - kube-node 
+
+- hosts: cluster
+  gather_facts: yes
+  tasks:
+    - include_tasks: approve_csr.yml 
+  tags:
+    - approve_csr
+
+- hosts: kube-master
+  roles:
+    - { role: calico, tags: calico }
+    - { role: coredns, tags: coredns }
+    - { role: metrics-server, tags: metrics-server }
+    - { role: dashboard, tags: dashboard }

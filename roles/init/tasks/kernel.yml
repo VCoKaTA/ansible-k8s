@@ -1,0 +1,32 @@
+- name: 转换内核版本为浮点数
+  set_fact:
+     KERNEL_VER: "{{ (ansible_kernel.split('-')[0].split('.')[0],ansible_kernel.split('-')[0].split('.')[1])|join('.')|float }}"
+
+- name: 设置 nf_conntrack 模块名
+  set_fact: NF_CONNTRACK="nf_conntrack"
+  when: "KERNEL_VER|float >= 4.19"
+
+- name: 设置 nf_conntrack_ipv4 模块名
+  set_fact: NF_CONNTRACK="nf_conntrack_ipv4"
+  when: "KERNEL_VER|float < 4.19"
+
+- name: 增加内核模块开机加载配置
+  template: src=10-k8s-modules.conf.j2 dest=/etc/modules-load.d/10-k8s-modules.conf
+  when: NF_CONNTRACK is defined
+
+# 消除docker info 警告WARNING: bridge-nf-call-ip[6]tables is disabled
+- name: 设置系统参数
+  template: src=95-k8s-sysctl.conf.j2 dest=/etc/sysctl.d/95-k8s-sysctl.conf
+  when: NF_CONNTRACK is defined
+
+- name: 加载内核模块
+  modprobe: name={{ item }} state=present
+  with_items:
+    - br_netfilter
+    - ip_vs
+    - ip_vs_rr
+    - ip_vs_wrr
+    - ip_vs_sh
+    - "{{ NF_CONNTRACK }}"
+  ignore_errors: true
+

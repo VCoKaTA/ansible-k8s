@@ -1,0 +1,5 @@
+---
+- hosts: HA 
+#  gather_facts: yes
+  roles:
+    - HA

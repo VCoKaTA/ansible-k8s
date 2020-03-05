@@ -1,0 +1,49 @@
+---
+- name: 在节点创建相关目录
+  file: name={{ item }} state=directory
+  with_items:
+  - /etc/kubernetes/pki/
+  - /etc/kubernetes/addon/
+  - /etc/cni/net.d
+  - /etc/calico
+
+- name: get calico-etcd-secrets info
+  shell: "kubectl get secrets -n kube-system"
+  register: secrets_info
+  run_once: true
+
+- name: 创建 calico-etcd-secrets
+  shell: "kubectl create secret generic -n kube-system calico-etcd-secrets \
+        --from-file=etcd-ca=/etc/kubernetes/pki/ca.pem \
+        --from-file=etcd-key=/etc/kubernetes/pki/calico-key.pem \
+        --from-file=etcd-cert=/etc/kubernetes/pki/calico.pem"
+  when: '"calico-etcd-secrets" not in secrets_info.stdout'
+  run_once: true
+
+- name: 配置 calico DaemonSet yaml文件
+  template: src=calico.yaml.j2 dest=/etc/kubernetes/addon/calico.yaml
+
+# 只需单节点执行一次
+- name: 运行 calico网络
+  shell: "kubectl apply -f /etc/kubernetes/addon/calico.yaml"
+  run_once: true
+
+# cni calico plugins 已经在calico.yaml完成自动安装
+- name: 下载calicoctl 客户端
+  get_url:
+    url={{ calico_bin }}/{{ item }} dest=/usr/local/bin/{{ item }} mode=0755
+  with_items:
+  - calicoctl
+  ignore_errors: true
+
+- name: 准备 calicoctl配置文件
+  template: src=calicoctl.cfg.j2 dest=/etc/calico/calicoctl.cfg
+
+# 等待网络插件部署成功，视下载镜像速度而定
+- name: 轮询等待calico-node 运行
+  shell: "kubectl get pod -n kube-system -o wide|grep 'calico-node'|grep ' {{ inventory_hostname }} '|awk '{print $3}'"
+  register: pod_status
+  until: pod_status.stdout == "Running"
+  retries: 15
+  delay: 15
+  ignore_errors: true

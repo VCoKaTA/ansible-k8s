@@ -1,0 +1,22 @@
+- name: 启用systemd自动加载模块服务
+  service: name=systemd-modules-load enabled=yes
+
+- name: 生效系统参数
+  shell: "sysctl -p /etc/sysctl.d/95-k8s-sysctl.conf"
+  when: NF_CONNTRACK is defined
+  ignore_errors: true
+
+# 设置系统 ulimits
+- name: 创建 systemd 配置目录
+  file: name=/etc/systemd/system.conf.d state=directory
+
+- name: 设置系统 ulimits
+  template: src=30-k8s-ulimits.conf.j2 dest=/etc/systemd/system.conf.d/30-k8s-ulimits.conf
+
+- name: 把SCTP列入内核模块黑名单,分发modules-load和sysctl的conf
+  copy:
+    src: '{{ item.src }}'
+    dest: "{{ item.dest }}"
+  with_items:
+    - { src: 'sctp.conf', dest: "/etc/modules-load.d/" }
+    - { src: 'kubernetes.conf', dest: "/etc/security/limits.d/" }

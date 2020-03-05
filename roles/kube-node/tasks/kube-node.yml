@@ -1,0 +1,89 @@
+---
+- name: kubenode创建相关目录
+  file: name="{{ item }}" state=directory
+  with_items:
+    - /etc/kubernetes/pki
+    - /opt/cni/bin
+    - /etc/cni/net.d
+    - /data/logs/kubernetes/kubelet
+    - /data/kubelet/kubelet-plugins/volume/exec/
+    - /data/logs/kubernetes/kube-proxy
+
+- name: 判断kubelet是否存在 
+  stat: path=/usr/local/bin/kubelet
+  register: kubelet_file
+
+- name: 判断kube-proxy是否存在
+  stat: path=/usr/local/bin/kube-proxy
+  register: kubeproxy_file
+
+- name: 分发二进制文件
+  get_url:
+    url: "{{ kube_bin }}/{{ item }}"
+    dest: /usr/local/bin/
+    mode: u+x
+  with_items:
+    - "kubelet"
+    - "kube-proxy"
+  when: not kubeproxy_file.stat.exists or kubelet_file.stat.exists
+
+- name: 判断kube-proxy.kubeconfig是否存在 
+  stat: path=/etc/kubernetes/kube-proxy.kubeconfig
+  register: kubeproxy_kubeconfig_file
+
+- name: 分发kube-proxy.kubeconfig
+  copy:
+    src: "{{ pki_dir }}/kube-proxy.kubeconfig"
+    dest: /etc/kubernetes/kube-proxy.kubeconfig
+
+- name: 创建log目录
+  file: name={{ kubelet.logrotate.logDir }}/logrotate state=directory
+  when: kubelet.logrotate.log is defined and kubelet.logrotate.log
+
+- name: 渲染kubelet的logrotate配置文件
+  template: src=templates/{{ item }} dest=/etc/logrotate.d/{{ item.split('/')[-1] }}
+  with_items: "{{ kubelet.logrotate.confTemplate }}"
+  when: kubelet.logrotate.log is defined and kubelet.logrotate.log
+
+- name: 获取docker CgroupDriver值
+  shell: |
+      docker info --format '{% raw %}{{.CgroupDriver}}{% endraw %}'
+  register: CgroupDriver
+
+- name: 配置kubelet
+  template: src="{{ item.src }}.j2" dest={{ item.dest }}/{{ item.src }}
+  with_items:
+    - { src: 'kubelet.service', dest: "/lib/systemd/system/" }
+    - { src: 'kubelet-config.yaml', dest: "/etc/kubernetes/" }
+
+- name: 分发kubelet相关证书
+  copy: src={{ item.src }} dest={{ item.dest }}
+  with_items:
+    - { src: '{{ pki_dir }}/ca.pem', dest: /etc/kubernetes/pki }
+    - { src: '{{ pki_dir }}/calico.pem', dest: /etc/kubernetes/pki }
+    - { src: '{{ pki_dir }}/calico-key.pem', dest: /etc/kubernetes/pki }
+    - { src: '{{ pki_dir }}/kubelet-bootstrap.kubeconfig', dest: /etc/kubernetes }
+    - { src: '{{ pki_dir }}/kube-proxy.kubeconfig', dest: /etc/kubernetes }
+
+- name: 开机并启动kubelet
+  systemd: name=kubelet state=started enabled=yes daemon_reload=yes
+
+- name: 部署kube-proxy
+  template: src="{{ item.src }}.j2" dest={{ item.dest }}/{{ item.src }}
+  with_items:
+    - { src: kube-proxy-config.yaml, dest: /etc/kubernetes/ }
+    - { src: kube-proxy.service, dest: /lib/systemd/system/ }
+
+# kube-proxy log:
+- name: 创建目录{{ proxy.logrotate.logDir }}/logrotate
+  file: name={{ proxy.logrotate.logDir }}/logrotate state=directory
+  when: proxy.logrotate.log is defined and proxy.logrotate.log
+
+- name: 分发logrotate配置文件
+  template: src={{ item }} dest=/etc/logrotate.d/{{ item.split('/')[-1] }}
+  with_items: "{{ proxy.logrotate.confTemplate }}"
+  when: proxy.logrotate.log is defined and proxy.logrotate.log
+
+- name: 开机并启动kube-proxy
+  systemd: name=kube-proxy state=started enabled=yes daemon_reload=yes
+

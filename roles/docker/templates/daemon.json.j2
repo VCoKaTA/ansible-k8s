@@ -1,0 +1,41 @@
+{
+  "oom-score-adjust": -1000,
+  "max-concurrent-downloads": 10,
+  "max-concurrent-uploads": 10,
+{% if docker.execOpts is defined %}
+  "exec-opts": [{% for opt in docker.execOpts %}
+
+      "{{ opt }}"{% if not loop.last %},{% endif %}
+ {%- endfor %}
+
+  ],
+{% endif %}
+{% if docker.registryMirrors is defined %}
+  "registry-mirrors": [{% for mirror in docker.registryMirrors %}
+
+      "{{ mirror }}"{% if not loop.last %},{% endif %}
+      {% endfor %}
+
+  ],
+{% endif %}
+{% if docker.insecureRegistries is defined %}
+  "insecure-registries": [{% for registries in docker.insecureRegistries %}
+
+       "{{ registries }}"{% if not loop.last %},{% endif %}
+      {% endfor %}
+
+  ],
+{% endif %}
+  "graph":"{{ docker.dataDir | default("/var/lib/docker") }}",
+{% if docker.driver is defined and 'overlay2' == docker.driver %}
+  "storage-driver": "overlay2",
+  "storage-opts": [
+    "overlay2.override_kernel_check=true"
+  ],
+{% endif %}
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m",
+    "max-file": "3"
+  }
+}

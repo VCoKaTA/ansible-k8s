@@ -1,0 +1,56 @@
+---
+# 自动设置LB节点变量'LB_IF'
+- name: 注册变量 LB_IF_TMP
+  shell: "ip a|grep '{{ inventory_hostname }}/'|awk '{print $NF}'"
+  register: LB_IF_TMP
+  when: "inventory_hostname in groups['HA']"
+
+- name: 设置变量 LB_IF
+  set_fact: LB_IF={{ LB_IF_TMP.stdout }}
+  when: "inventory_hostname in groups['HA']"
+
+- name: 分发sysctl的conf
+  copy:
+    src: ha-sysctl.conf 
+    dest: '/etc/sysctl.d/ha-sysctl.conf'
+  when: "inventory_hostname in groups['HA']"
+
+- name: 生效系统参数
+  shell: "sysctl -p /etc/sysctl.d/ha-sysctl.conf"
+  when: "inventory_hostname in groups['HA']"
+  ignore_errors: true
+
+- name: 安装 haproxy+keepalived
+  package: name={{ item }} state=present
+  with_items:
+  - psmisc
+  - haproxy
+  - keepalived
+  when: "inventory_hostname in groups['HA']"
+  ignore_errors: true
+
+- name: 创建相关目录
+  file: name={{ item }} state=directory
+  with_items:
+  - /etc/haproxy
+  - /etc/keepalived 
+  when: "inventory_hostname in groups['HA']"
+
+- name: 配置 haproxy
+  template:
+    src: haproxy.cfg.j2 
+    dest: /etc/haproxy/haproxy.cfg
+  when: "inventory_hostname in groups['HA']"
+
+- name: 配置 keepalived 主节点
+  template: 
+    src: keepalived.conf.j2 
+    dest: /etc/keepalived/keepalived.conf
+  when: "inventory_hostname in groups['HA']"
+
+- name: 设置keepalived haproxy开机并启动
+  systemd: name={{ item }} state=started enabled=yes
+  with_items:
+  - haproxy
+  - keepalived
+  when: "inventory_hostname in groups['HA']"

@@ -1,0 +1,18 @@
+---
+- import_tasks: yum.yml
+  when: 'ansible_distribution in ["CentOS","RedHat"]' 
+
+- import_tasks: firewalld.yml
+  when: 'ansible_distribution in ["CentOS","RedHat"]'
+
+- import_tasks: swap.yml
+
+- import_tasks: kernel.yml
+
+- import_tasks: syslog.yml 
+
+- import_tasks: system.yml
+
+- import_tasks: timezone.yml 
+
+- import_tasks: chrony.yml

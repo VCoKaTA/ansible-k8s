@@ -1,0 +1,9 @@
+- name: 转换内核版本为浮点数
+  set_fact:
+     KERNEL_VER: "{{ (ansible_kernel.split('-')[0].split('.')[0],ansible_kernel.split('-')[0].split('.')[1])|join('.')|float }}"
+
+- name: show KERNEL_VER
+  debug: var=KERNEL_VER
+
+- include_tasks: kernel.yml
+  when: "KERNEL_VER|float < 4"

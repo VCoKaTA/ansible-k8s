@@ -1,0 +1,30 @@
+---
+- hosts: localhost
+  tasks:
+    - name: get docker-registry info
+      shell: "kubectl get secret|grep regcred"
+      register: regcred_info
+      run_once: true
+      ignore_errors: True
+      delegate_to: "{{ groups['kube-master'][0] }}"
+    
+    - name: 创建docker-registry regcred
+      shell: |
+         kubectl create secret  -n kube-system docker-registry regcred --docker-server={{ HARBOR.url }}:443 --docker-username={{ HARBOR.user }} --docker-password={{ HARBOR.pass }}
+      register: create_registry
+      when: '"regcred" not in regcred_info.stdout'
+      run_once: true
+      delegate_to: "{{ groups['kube-master'][0] }}"
+    
+    - name: debug create_registry
+      debug: var=create_registry
+
+    - name: 用patch避免设置imagePullSecrets
+      shell: |
+         kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "regcred"}]}'
+      when: '"regcred" not in regcred_info.stdout'
+      register: path_registry
+      run_once: true
+      delegate_to: "{{ groups['kube-master'][0] }}"
+    - name: debug path_registry
+      debug: var=path_registry

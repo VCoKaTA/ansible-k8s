@@ -1,0 +1,32 @@
+[Unit]
+Description=Etcd Server
+After=network.target
+After=network-online.target
+Wants=network-online.target
+Documentation=https://github.com/coreos
+[Service]
+Type=notify
+WorkingDirectory={{ ETCD_DIR }}/data
+ExecStart=/bin/bash -c "{{ ETCD_DIR }}/bin/etcd \
+  --name={{ ansible_hostname }} \
+  --cert-file={{ TLS_DIR }}/etcd.pem \
+  --key-file={{ TLS_DIR }}/etcd-key.pem \
+  --peer-cert-file={{ TLS_DIR }}/etcd.pem \
+  --peer-key-file={{ TLS_DIR }}/etcd-key.pem \
+  --trusted-ca-file={{ TLS_DIR }}/ca.pem \
+  --peer-trusted-ca-file={{ TLS_DIR }}/ca.pem \
+  --initial-advertise-peer-urls=https://{{ inventory_hostname }}:2380 \
+  --listen-peer-urls=https://{{ inventory_hostname }}:2380 \
+  --listen-client-urls=https://{{ inventory_hostname }}:2379,http://127.0.0.1:2379 \
+  --advertise-client-urls=https://{{ inventory_hostname }}:2379 \
+  --initial-cluster-token=etcd-cluster \
+  --initial-cluster='{% for host in groups['etcd'] %}{{ hostvars[host].ansible_hostname }}=https://{{ hostvars[host].inventory_hostname }}:2380{% if not loop.last %},{% endif %}{% endfor %}'\
+  --initial-cluster-state=new \
+  --debug=false \
+  --logger=zap \
+  --data-dir={{ ETCD_DIR }}/data"
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+[Install]
+WantedBy=multi-user.target

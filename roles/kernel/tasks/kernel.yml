@@ -1,0 +1,61 @@
+---
+- name: Add elrepo key
+  rpm_key:
+    state: present
+    key: '{{ kernel_rpm_key }}' 
+
+- name: Install elrepo
+  yum:
+    name: '{{ kernel_elrepo }}' 
+
+# 禁用系统swap
+- name: 禁用系统 swap
+  shell: "swapoff -a && sysctl -w vm.swappiness=0"
+  ignore_errors: true
+
+- name: 删除fstab swap 相关配置
+  lineinfile:
+    path: /etc/fstab
+    regexp: 'swap'
+    state: absent
+    backup: 'yes'
+
+- name: 临时关闭 selinux
+  shell: "setenforce 0"
+  failed_when: false
+
+- name: 永久关闭 selinux
+  lineinfile:
+    dest: /etc/selinux/config
+    regexp: "^SELINUX="
+    line: "SELINUX=disabled"
+
+- name: 移除kernel-tools
+  yum: name=kernel-tools-libs,kernel-tools state=absent
+  ignore_errors: True
+
+- name: Install kernel-{{ kernel_v }}
+  yum:
+    enablerepo: elrepo-kernel,elrepo-extras
+    name: 
+      - 'kernel-{{ kernel_v }}'
+      - 'kernel-{{ kernel_v }}-devel'
+      - 'kernel-{{ kernel_v }}-headers'
+      - 'kernel-{{ kernel_v }}-tools'
+    state: installed
+
+- name: == GRUB == Set latest kernel as default
+  raw: grub2-set-default 0
+
+- name: rebuild grub config under boot
+  command: grub2-mkconfig -o /boot/grub2/grub.cfg
+
+- name: 设置内核参数适应docker
+  shell: |
+    grubby --args="user_namespace.enable=1" --update-kernel=$(grubby --default-kernel)
+
+- name: Reboot host
+  shell: sleep 2 && shutdown -r now "reboot"
+  async: 1
+  poll: 0
+  ignore_errors: yes

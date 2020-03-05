@@ -1,0 +1,34 @@
+[k8s]
+10.100.21.220
+10.100.21.221
+10.100.21.222
+10.100.21.223
+10.100.21.224
+[kube-master]
+10.100.21.220
+10.100.21.221
+10.100.21.222
+
+#10.100.48.7 hostname=ans-k8s-1.novalocal
+#10.100.48.176 hostname=ans-k8s-2.novalocal
+#10.100.48.149 hostname=ans-k8s-3.novalocal
+[kube-node]
+10.100.21.223
+10.100.21.224
+[etcd:children]
+kube-master
+
+[HA:children]
+kube-master
+
+[cluster:children]
+k8s
+kube-master
+etcd
+kube-node
+HA
+
+[kube:vars]
+#ansible_ssh_common_args='-o ProxyCommand="ssh -W %h:%p -p 22  -q root@10.100.48.82"'
+#ansible_ssh_common_args= '-o ProxyCommand="ssh  -W %h:%p -q root@10.100.48.82"'
+ansible_ssh_user=root

@@ -1,0 +1,3 @@
+---
+- include_tasks: metrics-server.yml
+  run_once: true

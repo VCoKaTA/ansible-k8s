@@ -1,0 +1,84 @@
+- name: 创建证书,kubeconfig目录
+  file:
+    name: "{{ item }}" 
+    state: directory
+  with_items:
+    - "/etc/kubernetes/pki/"
+    - "~/.kube/"
+
+- include_tasks: logrotate.yml
+  loop_control:
+    loop_var: out_item
+  with_dict:
+    - "{{ apiserver }}"
+    - "{{ controllerManager }}"
+    - "{{ scheduler }}"
+
+- name: 分发证书文件
+  copy: src="{{ pki_dir }}/{{ item }}" dest=/etc/kubernetes/pki
+  with_items:
+    - admin-key.pem
+    - admin.pem
+    - ca-key.pem
+    - ca.pem
+    - kube-api-key.pem
+    - kube-api.pem
+    - kube-controller-manager-key.pem
+    - kube-controller-manager.pem
+    - kube-scheduler-key.pem
+    - kube-scheduler.pem
+    - proxy-client-key.pem
+    - proxy-client.pem
+    - calico.pem
+    - calico-key.pem
+
+- name: 分发apiserver和kube-scheduler部分配置文件
+  template: src="{{ item }}.j2" dest="/etc/kubernetes/{{ item }}"
+  with_items:
+    - encryption-config.yaml
+    - audit-policy.yaml  
+    - kube-scheduler.yaml
+    - csr-crb.yaml
+
+- name: 配置管理组件的systemd文件
+  template: src="{{ item }}.j2" dest="/usr/lib/systemd/system/{{ item }}"
+  with_items:
+    - kube-apiserver.service
+    - kube-controller-manager.service
+    - kube-scheduler.service
+
+- name: 分发管理组件的kubeconfig
+  copy: src="{{pki_dir}}/{{ item }}" dest=/etc/kubernetes/
+  with_items:
+    - kubectl.kubeconfig
+    - kube-controller-manager.kubeconfig
+    - kube-scheduler.kubeconfig
+  
+- name: 分发管理组件二进制文件
+  get_url:
+    url: "{{ kube_bin }}/{{ item }}"
+    dest: "/usr/local/bin/"
+    mode: u+x
+  with_items:
+    - "kubectl"
+    - "kubeadm"
+    - "kube-apiserver"
+    - "kube-controller-manager"
+    - "kube-scheduler"
+
+- name: 设置kubectl的kubeconfig
+  copy:
+    src: /etc/kubernetes/kubectl.kubeconfig
+    dest: ~/.kube/config
+    remote_src: true
+
+- name: 设置kubectl
+  shell: |
+    kubectl completion bash > /etc/bash_completion.d/kubectl
+
+- name: 启动管理组件
+  systemd: name="{{ item }}" state=restarted enabled=yes daemon_reload=yes
+  with_items:
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler

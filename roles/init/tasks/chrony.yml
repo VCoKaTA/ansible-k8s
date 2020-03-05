@@ -1,0 +1,21 @@
+- name: 移除ntp
+  yum: name=ntp state=absent
+  ignore_errors: True
+
+- name: 安装chrony
+  yum: name=chrony state=latest
+
+- name: 分发chrony server端配置文件
+  template:
+    src: chrony-server.conf.j2
+    dest: /etc/chrony.conf
+  when: 'inventory_hostname in chrony_server'
+
+- name: 分发chrony client端配置文件
+  template:
+    src: chrony-client.conf.j2
+    dest: /etc/chrony.conf
+  when: 'inventory_hostname not in chrony_server'
+
+- name: 设置chrony开机并启动
+  systemd: name=chronyd enabled=yes

@@ -1,0 +1,5 @@
+---
+- hosts: kube-master
+  roles:
+    #- init
+    - kube-master

@@ -1,0 +1,22 @@
+[Unit]
+Description=Kubernetes Kube-Proxy Server
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/kube-proxy \
+  {% if nodename is defined %}
+  --hostname-override={{ nodename }} \
+  {% else %}
+  --hostname-override={{ inventory_hostname }} \
+  {% endif %}
+  --config=/etc/kubernetes/kube-proxy-config.yaml \
+  --logtostderr=false \
+  --log-dir=/data/logs/kubernetes/kube-proxy \
+  --v=2
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

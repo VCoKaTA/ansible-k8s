@@ -1,0 +1,29 @@
+- name: 手动 approve server cert csr
+  shell: |
+    kubectl get csr|grep 'Pending' | awk 'NR>0{print $1}'| xargs kubectl certificate approve
+  delegate_to: "{{ groups['kube-master'][0] }}"
+  ignore_errors: True
+  run_once: true
+
+- name: 请给新加master节点打标签
+  shell: |
+        kubectl label --overwrite nodes {{ inventory_hostname }} node-role.kubernetes.io/master=""
+  delegate_to: "{{ groups['kube-master'][0] }}"
+  ignore_errors: True
+  when: "inventory_hostname in groups['kube-master']"
+
+- name: 请给新加worker节点打标签
+  shell: |
+       kubectl label nodes {{ inventory_hostname }}  node-role.kubernetes.io/node=node
+  delegate_to: "{{ groups['kube-master'][0] }}"
+  when: "inventory_hostname not in groups['kube-master']"
+  ignore_errors: True
+
+- name: 请给master节点上的kubelet打污点
+  shell: |
+         kubectl  taint nodes {% for host in groups["kube-master"] %}{{ host }} {% endfor %}  node-role.kubernetes.io/master="":NoSchedule
+  delegate_to: "{{ groups['kube-master'][0] }}"
+  ignore_errors: True
+  run_once: true
+  when: not ( NewNode | default(false) )
+

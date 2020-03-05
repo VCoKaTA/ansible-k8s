@@ -1,0 +1,6 @@
+- name: 读取docker证书stat信息
+  stat: path="/usr/bin/docker"
+  register: docker_file
+
+- include_tasks: docker.yml
+  when: docker_file.stat.isreg is not defined

@@ -1,0 +1,13 @@
+---
+- name: 在节点创建相关目录
+  file: name={{ item }} state=directory
+  with_items:
+  - /etc/kubernetes/addon/
+
+- name: 配置 dashboard yaml文件
+  template: src=dashboard.yaml.j2 dest=/etc/kubernetes/addon/dashboard.yaml
+
+# 只需单节点执行一次
+- name: 运行 dashboard
+  shell: "kubectl apply -f /etc/kubernetes/addon/dashboard.yaml"
+  run_once: true

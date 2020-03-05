@@ -1,0 +1,43 @@
+- name: 删除centos/redhat默认安装
+  shell: "yum remove -y {{ item }}"
+  with_items:
+    - firewalld
+    - python-firewall
+    - firewalld-filesystem
+  args:
+      warn: false
+  ignore_errors: true
+
+- name: base yum repo
+  get_url:
+    url: '{{ CentOS7_Base }}'
+    dest: /etc/yum.repos.d/CentOS-Base.repo
+
+- name: epel base yum repo
+  get_url:
+    url: '{{ EPEL7 }}'
+    dest: /etc/yum.repos.d/epel.repo
+
+- name: 添加docker-ce的repo文件
+  get_url:
+    url: "{{ Docker_Ce }}" 
+    dest: /etc/yum.repos.d/docker-ce.repo
+
+- name: 安装基础软件包
+  yum:
+    name:
+      - bash-completion     # bash命令补全工具，需要重新登录服务器生效
+      - conntrack-tools     # ipvs 模式需要
+      - ipset               # ipvs 模式需要
+      - ipvsadm             # ipvs 模式需要
+      - libseccomp          # 安装containerd需要
+      - nfs-utils           # 挂载nfs 共享文件需要 (创建基于 nfs的PV 需要)
+      - psmisc              # 安装psmisc 才能使用命令killall，keepalive的监测脚本需要
+      - rsync               # 文件同步工具，分发证书等配置文件需要
+      - socat               # 用于port forwarding
+      - sysstat
+      - libseccomp
+      - perl
+      - jq
+      - logrotate
+    state: present

@@ -1,0 +1,39 @@
+- name: "创建{{ node.disk.init_disk_device }}分区"
+  when: not disk_stat.stat.exists
+  parted:
+    device:     '{{node.disk.init_disk_device}}'
+    label:      '{{node.disk.init_disk_label}}'
+    number:     '{{node.disk.init_partition_number}}'
+    part_start: '{{node.disk.init_partition_start}}'
+    part_end:   '{{node.disk.init_partition_end}}'
+    part_type:  '{{node.disk.init_partition_type}}'
+    state:      present
+  register:     result
+  failed_when: result.failed is defined  and "No such file or directory" not in result.err
+
+- name: "disk"
+  debug:
+    msg: "即将格式化的磁盘分区是{{ node.disk.init_disk_device }}{{ node.disk.init_partition_number }}"
+
+- name: "格式化{{ node.disk.init_disk_device }}{{ node.disk.init_partition_number }}分区"
+  filesystem:
+    fstype:     '{{node.disk.init_fs_type}}'
+    force:      '{{node.disk.init_fs_force}}'
+    dev:        '{{node.disk.init_fs_dev}}'
+  register:     result
+  failed_when:  result.failed is defined and  "not found" not in result.err
+
+- name: "挂载{{ node.disk.init_fs_dev }}分区到{{ node.mount_dir }}目录"
+  mount:
+    boot:       yes
+    fstype:     '{{ node.disk.init_fs_type }}'
+    path:       '{{ node.mount_dir }}'
+    src:        '{{ node.disk.init_fs_dev }}'
+    state:      mounted
+
+# - name: /data chown work
+#   file:
+#     path:     /data
+#     state:    directory
+#     group:    '{{init_account_group}}'
+#     owner:    '{{init_account_user}}'

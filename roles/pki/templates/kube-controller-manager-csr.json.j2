@@ -1,0 +1,27 @@
+{
+    "CN": "system:kube-controller-manager",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "hosts": [
+    "{{ VIP }}",
+    "{{ CLUSTER_KUBERNETES_SVC_IP }}",
+{% for host in MASTER_CERT_HOSTS %}
+    "{{ host }}",
+{% endfor %}
+{% for host in groups['kube-master'] %}
+    "{{ host }}",
+{% endfor %}
+    "127.0.0.1"
+    ],
+    "names": [
+      {
+        "C": "CN",
+        "ST": "BeiJing",
+        "L": "BeiJing",
+        "O": "system:kube-controller-manager",
+        "OU": "System"
+      }
+    ]
+}

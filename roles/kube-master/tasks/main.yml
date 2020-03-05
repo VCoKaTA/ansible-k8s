@@ -1,0 +1,46 @@
+- import_tasks: kube-master.yml
+  when: "inventory_hostname in groups['kube-master']"
+
+- name: 测试apiserver端口
+  shell: "curl  -s --cacert /etc/kubernetes/pki/ca.pem --cert /etc/kubernetes/pki/admin.pem --key /etc/kubernetes/pki/admin-key.pem   https://{{ inventory_hostname }}:6443/healthz "
+  register: curl_info
+  until: "'ok' in curl_info.stdout"
+  retries: 10
+  delay: 4
+  ignore_errors: True
+
+#- name: debug curl
+#  debug: var=curl_info
+
+- name: 以轮询的方式等待master服务启动完成
+  command: "kubectl get cs"
+  register: result
+  until:    result.rc == 0 
+  retries:  5
+  delay: 6
+  run_once: true
+
+
+- name: 授予 kube-apiserver 访问 kubelet API 的权限 
+  shell: "kubectl create clusterrolebinding kube-apiserver:kubelet-apis --clusterrole=system:kubelet-api-admin --user kubernetes --kubeconfig=/etc/kubernetes/kubectl.kubeconfig"
+#  connection: local
+  run_once: true
+  ignore_errors: True
+
+- name: get docker-registry info
+  shell: "kubectl get secret  -n kube-system|grep regcred"
+  register: regcred_info
+  run_once: true
+  ignore_errors: True
+
+- name: 创建docker-registry regcred
+  shell: |
+     kubectl create secret docker-registry  -n kube-system regcred --docker-server="{{ HARBOR.url }}:443" --docker-username="{{ HARBOR.user }}" --docker-password="{{ HARBOR.pass }}"
+  when: '"regcred" not in regcred_info.stdout'
+  run_once: true
+
+- name: 用patch避免设置imagePullSecrets
+  shell: |
+     kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "regcred"}]}' -n kube-system
+  when: '"regcred" not in regcred_info.stdout'
+  run_once: true

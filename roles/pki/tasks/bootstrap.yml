@@ -1,0 +1,61 @@
+#----------- 创建 kubelet-bootstrap文件
+- name: 读取kubelet-bootstrap.kubeconfig证书stat信息
+  stat: path="{{ pki_dir }}/kubelet-bootstrap.kubeconfig"
+  register: kubelet_bootstrap_file
+
+- name: 创建token kubelet-bootstrap
+  shell: |
+      kubeadm token create \
+      --description kubelet-bootstrap-token \
+      --groups system:bootstrappers:node \
+      --kubeconfig=/etc/kubernetes/kubectl.kubeconfig
+  register: BOOTSTRAP_TOKEN
+  delegate_to: "{{ groups['kube-master'][0] }}"
+  when: kubelet_bootstrap_file.stat.isreg is not defined
+
+- name: debug BOOTSTRAP_TOKEN
+  debug: var=BOOTSTRAP_TOKEN
+
+- name: 设置集群参数kubelet-bootstrap
+  shell: |
+        {{ pki_bin_dir }}/kubectl config set-cluster {{ CLUSTER_NAME }} \
+        --certificate-authority={{ pki_dir }}/ca.pem \
+        --embed-certs=true \
+        --server=https://{{ VIP }}:{{ VIP_APISERVER_PORT }} \
+        --kubeconfig={{ pki_dir }}/kubelet-bootstrap.kubeconfig && \
+        {{ pki_bin_dir }}/kubectl config set-credentials kubelet-bootstrap \
+        --token={{ BOOTSTRAP_TOKEN.stdout }} \
+        --kubeconfig={{ pki_dir }}/kubelet-bootstrap.kubeconfig && \
+        {{ pki_bin_dir }}/kubectl config set-context default \
+        --cluster={{ CLUSTER_NAME }} \
+        --user=kubelet-bootstrap \
+        --kubeconfig={{ pki_dir }}/kubelet-bootstrap.kubeconfig && \
+        {{ pki_bin_dir }}/kubectl config use-context default  --kubeconfig={{ pki_dir }}/kubelet-bootstrap.kubeconfig
+  args:
+    executable: bash
+  when: kubelet_bootstrap_file.stat.isreg is not defined
+
+#创建三个 ClusterRoleBinding，分别用于自动 approve client、renew client、renew server 证书
+- name: 创建三个 ClusterRoleBinding，用于自动approve证书
+  shell: |
+    kubectl apply -f /etc/kubernetes/csr-crb.yaml       
+  delegate_to: "{{ groups['kube-master'][0] }}"
+  run_once: true
+  ignore_errors: True
+
+- name: get calico-etcd-secrets info
+  shell: "kubectl get clusterrolebinding -n kube-system|grep kubelet-bootstrap"
+  register: kubelet_bootstrap_info
+  delegate_to: "{{ groups['kube-master'][0] }}"
+  run_once: true
+  ignore_errors: True
+
+- name: 配置bootstrap
+  shell: |
+     kubectl create clusterrolebinding kubelet-bootstrap --clusterrole=system:node-bootstrapper --group=system:bootstrappers:node 
+  delegate_to: "{{ groups['kube-master'][0] }}"
+  args:
+   executable: bash
+  run_once: true
+  when: '"kubelet-bootstrap" not in kubelet_bootstrap_info.stdout'
+

@@ -1,0 +1,6 @@
+---
+- hosts: 10.100.48.13 
+  roles:
+    - init
+    - docker
+    - kube-node

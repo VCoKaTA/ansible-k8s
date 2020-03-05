@@ -1,0 +1,9 @@
+- name: "创建app目录"
+  file:
+    path: "{{ item }}"
+    state: directory
+  with_items:
+    - "{{ data_dir }}/kubernetes"
+    - /etc/kubernetes/pki
+    - /etc/kubernetes/manifests
+    - "{{ data_dir }}/logs/kubernetes"

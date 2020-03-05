@@ -1,0 +1,33 @@
+---
+- block:
+  - name: prepare some dirs
+    file: name={{ item }} state=directory
+    with_items:
+    - "{{ pki_dir }}"
+    - "{{ pki_bin_dir }}"
+  
+  - name: 本地设置 bin 目录权限
+    file: path={{ pki_bin_dir }} state=directory mode=0755 recurse=yes
+  
+  - name: 下载kubectl二进制文件
+    get_url:
+      url: "{{ item.url }}"
+      dest:  "{{ item.dest }}"
+      mode: 755
+    with_items:
+      - { url: '{{ kube_bin }}/kubectl' , dest: '{{ pki_bin_dir }}' }
+      - { url: '{{ kube_bin }}/kubeadm' , dest: '{{ pki_bin_dir }}' }
+      - { url: '{{ cfssl_url }}' , dest: '{{ pki_bin_dir }}' }
+      - { url: '{{ cfssljson_url }}' , dest: '{{ pki_bin_dir }}' }
+      - { url: '{{ cfssl_certinfo_url }}' , dest: '{{ pki_bin_dir }}' }
+  when: pki_mode == "pki"
+
+- include_tasks: pki.yml
+  when: pki_mode == "pki"
+
+- include_tasks: kubeconfig.yml
+  when: pki_mode == "pki"
+ 
+- include_tasks: bootstrap.yml
+  when: pki_mode == "bootstrap"
+
